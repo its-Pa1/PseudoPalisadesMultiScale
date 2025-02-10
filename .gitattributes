@@ -16,3 +16,29 @@
 *.min.js linguist-vendored
 *.min.css linguist-vendored
 *.map    linguist-vendored
+
+# Force GitHub to classify all `.cpp` files as C++
+*.cpp linguist-language=C++
+
+# Exclude documentation files from stats
+docs/* linguist-documentation
+*.md linguist-documentation
+
+# Classify Python files correctly
+*.py linguist-language=Python
+
+# Classify Jupyter Notebooks as Python
+*.ipynb linguist-language=Jupyter Notebook
+
+# Classify LaTeX and other math-related files
+*.tex linguist-language=TeX
+*.bib linguist-language=TeX
+*.md linguist-documentation
+
+# Exclude data and non-code files from stats
+*.csv linguist-vendored
+*.tsv linguist-vendored
+*.json linguist-vendored
+*.xml linguist-vendored
+*.yaml linguist-vendored
+*.yml linguist-vendored
