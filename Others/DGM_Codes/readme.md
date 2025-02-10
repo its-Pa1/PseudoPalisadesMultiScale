@@ -6,7 +6,17 @@ This directory contains the C++ codes for the Discontinuous Galerkin Method (DGM
 
 ## Main Files/Scripts
 
+- **hypo_macro.cc**: The main C++ file which calls all the functions and simulates the model. It includes the necessary headers and sets up the simulation environment.
+
 - **assembler_hypo_micro.hh**: This header file defines the `Assembler_s` class, which is responsible for assembling various matrices (diffusion, advection, and source) and computing initial values for the simulation. It includes methods for setting up the problem, assembling matrices, and solving the mass matrix.
+
+- **diffusion_tensor.hh**: This header file defines the `DiffusionTensor` class, which reads the diffusion tensor data from a NetCDF file and provides the tensor values at specified points.
+
+- **volume_fraction_f.hh**: This header file defines the `VolumeFraction` class, which reads the volume fraction data from a NetCDF file and provides the volume fraction values at specified points.
+
+- **water_tensor.hh**: This header file defines the `WaterTensor` class, which reads the water diffusion tensor data from a NetCDF file and provides the tensor values at specified points.
+
+- **biology_hypo_micro.hh**: This header file defines the `Biology_s` class, which includes functions for computing source terms and initial values for the biological model.
 
 ## Functions
 
@@ -46,7 +56,7 @@ The user has to keep the `data.ncdf` file in the `data` directory. The author of
 
 1. Ensure that the required libraries are installed.
 2. Place the `data.ncdf` file in the `data` directory.
-3. Compile and run the main C++ program that includes the [assembler_hypo_micro.hh](http://_vscodecontentref_/1) header file.
+3. Compile and run the main C++ program `hypo_macro.cc`.
 
 ## Concept
 
