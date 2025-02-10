@@ -8,8 +8,8 @@ h = 5; % spatial spacing
 x = 0:h:1000; % x domain
 y = x; % y,same as x for a square domain
 [X,Y] = meshgrid(x,y); % square grid
-dt = .01; % time spacing
-t_end = 10; % end time
+dt = 0.0005; % time spacing
+t_end = 14; % end time
 Lx = length(x); % length of x and y
 N = (Lx-2)^2; % number of unknowns in the domain
 flux_x = zeros(Lx,Lx); % flux in x direction
@@ -40,6 +40,7 @@ D_s =  DT_scale*50;
 M_max = 0.8;
 S_max = 10^(-6.4);
 mu0 = (0.2/(60*60*24))*scale;
+epsilon = 1e-5;
 
 %% Initial conditions
 % for tumor
@@ -62,28 +63,36 @@ S_old = S_old';
 M_total (:,:,1) = M_old;
 S_total (:,:,1) = S_old;
 
-%% calling both the diffusion matrix functions
-[q,Q_value, a,b,c,FA,DivDT_x,DivDT_y,A] = set_tumor_diff(x,y,dt, delta, kappa, center_x_DW,center_y_DW,DT_scale);
+%% calling both the diffusion matrix functions, Q, Eq, DivDT,DivEq
+[q,E_q,div_Eq, Q_value, a,b,c,FA,DivDT_x,DivDT_y,A] = set_tumor_diff(x,y,dt, delta, kappa, center_x_DW,center_y_DW,DT_scale,epsilon);
 A_s = set_acidity_diff(x,D_s,dt);
 Q = reshape(Q_value(2:end-1,2:end-1),N,1);
+Ex = reshape(E_q(1,:,:),size(x,2),size(y,2));
+Ey = reshape(E_q(2,:,:),size(x,2),size(y,2));
+
 %% Time loop
 count = 2;
 count2 = 1;
-t = 0:dt:t_end;
-flux_x_test = zeros(1,length(t));
-flux_y_test = zeros(1,length(t));
-for j = 1:length(t)
+test_ep = 1e-15;
+
+for j = 0:dt:t_end
     
     for ii = 2:length(x)-1
         for jj = 2:length(y)-1
             % flux calculation in both directions
-            flux_x(ii,jj) =  DivDT_x(ii-1,jj-1)+function_g_new(S_old(ii,jj), S_max,lambda0, lambda1,kp,km)*...
-                (a(ii,jj)*((S_old(ii,jj)-S_old(ii-1,jj))/h) + ...
-                b(ii,jj)*((S_old(ii,jj)-S_old(ii,jj-1))/h));
+            flux_x(ii,jj) = (s*Ex(ii,jj)...
+                + epsilon*DT_scale*Ex(ii,jj)*div_Eq(ii-1,jj-1)...
+                - DivDT_x(ii-1,jj-1)...
+                - function_g_new(S_old(ii,jj),S_max,lambda0, lambda1,kp,km)*...
+                ((a(ii,jj)*((S_old(ii+1,jj)-S_old(ii,jj))/(h))) + ...
+                (b(ii,jj)*((S_old(ii,jj+1)-S_old(ii,jj))/(h)))));
             
-            flux_y(ii,jj) =  DivDT_y(ii-1,jj-1)+function_g_new(S_old(ii,jj), S_max,lambda0, lambda1,kp,km)*...
-                (b(ii,jj)*((S_old(ii,jj)-S_old(ii-1,jj))/h) + ...
-                c(ii,jj)*((S_old(ii,jj)-S_old(ii,jj-1))/h));
+            flux_y(ii,jj) = (s*Ey(ii,jj)...
+                + epsilon*DT_scale*Ey(ii,jj)*div_Eq(ii-1,jj-1) + ...
+                - DivDT_y(ii-1,jj-1)...
+                - function_g_new(S_old(ii,jj),S_max,lambda0, lambda1,kp,km)*...
+                ((b(ii,jj)*((S_old(ii+1,jj)-S_old(ii,jj))/(h))) + ...
+                (c(ii,jj)*((S_old(ii,jj+1)-S_old(ii,jj))/(h)))));
         end
     end
     flux_x(1,:)   = flux_x(2,:);          flux_y(1,:)   = flux_y(2,:);
@@ -91,34 +100,57 @@ for j = 1:length(t)
     flux_x(:,1)   = flux_x(:,2);          flux_y(:,1)   = flux_y(:,2);
     flux_x(:,end) = flux_x(:,end-1);      flux_y(:,end) = flux_y(:,end-1);
     
-    flux_x_test(j) = max(max(flux_x));
-    flux_y_test(j) = max(max(flux_y));
-    
     for kk = 2:Lx-1
         for ll = 2:Lx-1
-            % upwinding in both directions
-            if(flux_x(kk,ll)<=0)
-                advection_x(kk-1,ll-1) = (flux_x(kk,ll)*M_old(kk,ll) - flux_x(kk-1,ll)*M_old(kk-1,ll))/h;
+            % upwinding in both directions (2nd order upwind with van-Leer flux limitation)
+            if ((kk==2)||(kk==Lx-1)||(ll==2)||(ll==Lx-1))
+                if(flux_x(kk,ll)>=0)
+                    advection_x(kk-1,ll-1) = (flux_x(kk,ll)*M_old(kk,ll) - flux_x(kk-1,ll)*M_old(kk-1,ll))/h;
+                else
+                    advection_x(kk-1,ll-1) = (flux_x(kk+1,ll)*M_old(kk+1,ll) - flux_x(kk,ll)*M_old(kk,ll))/h;
+                end
+                
+                if(flux_y(kk,ll)>0)
+                    advection_y(kk-1,ll-1) = (flux_y(kk,ll)*M_old(kk,ll) - flux_y(kk,ll-1)*M_old(kk,ll-1))/h;
+                else
+                    advection_y(kk-1,ll-1) = (flux_y(kk,ll+1)*M_old(kk,ll+1) - flux_y(kk,ll)*M_old(kk,ll))/h;
+                end
             else
-                advection_x(kk-1,ll-1) = (flux_x(kk+1,ll)*M_old(kk+1,ll) - flux_x(kk,ll)*M_old(kk,ll))/h;
-            end
-            
-            if (flux_y(kk,ll)<=0)
-                advection_y(kk-1,ll-1) = (flux_y(kk,ll)*M_old(kk,ll) - flux_y(kk,ll-1)*M_old(kk,ll-1))/h;
-            else
-                advection_y(kk-1,ll-1) = (flux_y(kk,ll+1)*M_old(kk,ll+1) - flux_y(kk,ll)*M_old(kk,ll))/h;
+                rx_m = (M_old(kk+1,ll)- M_old(kk,ll) + test_ep)/(M_old(kk,ll) - M_old(kk-1,ll) + test_ep);
+                rx_p = (M_old(kk,ll) - M_old(kk+1,ll) + test_ep)/(M_old(kk+1,ll)- M_old(kk+2,ll) + test_ep);
+                ry_m = (M_old(kk,ll+1)- M_old(kk,ll) + test_ep)/(M_old(kk,ll) - M_old(kk,ll-1) + test_ep);
+                ry_p = (M_old(kk,ll) - M_old(kk,ll+1) + test_ep)/(M_old(kk,ll+1)- M_old(kk,ll+2) + test_ep);
+                phi_x_m = (abs(rx_m)+rx_m)/(1+abs(rx_m));
+                phi_x_p = (abs(rx_p)+rx_p)/(1+abs(rx_p));
+                phi_y_m = (abs(ry_m)+ry_m)/(1+abs(ry_m));
+                phi_y_p = (abs(ry_p)+ry_p)/(1+abs(ry_p));
+                
+                if(flux_x(kk,ll)>=0)
+                    advection_x(kk-1,ll-1) = ((flux_x(kk,ll)* (M_old(kk,ll)+0.5*phi_x_m*(M_old(kk,ll)-M_old(kk-1,ll))))/h)...
+                        - ((flux_x(kk-1,ll)* (M_old(kk-1,ll)+0.5*phi_x_m*(M_old(kk-1,ll)-M_old(kk-2,ll))))/h);
+                else
+                    advection_x(kk-1,ll-1) = ((flux_x(kk+1,ll)*(M_old(kk+1,ll)-0.5*phi_x_p*(M_old(kk+2,ll)-M_old(kk+1,ll))))/h)...
+                        - (flux_x(kk,ll)*(M_old(kk,ll)-0.5*phi_x_p*(M_old(kk+1,ll)-M_old(kk,ll))))/h;
+                end
+                
+                if(flux_y(kk,ll)>=0)
+                    advection_y(kk-1,ll-1) = ((flux_y(kk,ll)* (M_old(kk,ll)+0.5*phi_y_m*(M_old(kk,ll)-M_old(kk,ll-1))))/h)...
+                        - ((flux_y(kk,ll-1)* (M_old(kk,ll-1)+0.5*phi_y_m*(M_old(kk,ll-1)-M_old(kk,ll-2))))/h);
+                else
+                    advection_y(kk-1,ll-1) = ((flux_y(kk,ll+1)*(M_old(kk,ll+1)-0.5*phi_y_p*(M_old(kk,ll+2)-M_old(kk,ll+1))))/h)...
+                        - (flux_y(kk,ll)*(M_old(kk,ll)-0.5*phi_y_p*(M_old(kk,ll+1)-M_old(kk,ll))))/h;
+                end
             end
         end
     end
-    
     B_M = reshape(M_old(2:end-1,2:end-1),N,1);
     B_S = reshape(S_old(2:end-1,2:end-1),N,1);
     advection =  reshape(advection_x,N,1) + reshape(advection_y,N,1);
     
-    source_M = (mu0)*((1-(B_M/M_max)).*(1-(B_S/S_max))).*B_M; % source tumor
+    source_M = epsilon*(mu0)*((1-(B_M/M_max)).*(1-(B_S/S_max))).*B_M; % source terms for glioma eq
     
     
-    RHS_M = B_M + dt*advection+ dt*source_M; % entire RHS for tumor eq(source and advection) for IMEX method
+    RHS_M = B_M - dt*advection+ dt*source_M; % entire RHS for tumor eq(source and advection) for IMEX method
     
     RHS_S = B_S+ dt*beta*B_M - dt*alpha*B_S;% RHS containing source & uptake for acidity eq
     
@@ -134,27 +166,28 @@ for j = 1:length(t)
     new_S = [S_sol(1,1:end);S_sol;S_sol(end,1:end)];
     S_new = [new_S(1:end,1),new_S, new_S(1:end,end)];
     
-    % plots per iteration
-    % uncomment till title, if plots at each iteration is required (for debug)
-    % % %    figure(1)
-    % % %     set(gcf, 'Position',  [100, 600, 500, 500])
-    % % %     surf(x,y,M_old')
-    % % %     view(0,90)
-    % % %     colorbar
-    % % %     shading interp
-    % % %     colormap jet
-    % % %     drawnow
-    % % %     title(['Tumor at time step ',num2str(j)], 'Fontsize', 15);
-    % % %     figure(2)
-    % % %     set(gcf, 'Position',  [600, 600, 500, 500])
-    % % %     surf(x,y,S_old')
-    % % %     view(0,90)
-    % % %     colorbar
-    % % %     shading interp
-    % % %     colormap jet
-    % % %     drawnow
-    % % %     title(['Acidity at time step ',num2str(j)], 'Fontsize', 15);
-    
+    % % %     plots per iteration
+    % % %     uncomment till title, if plots at each iteration is required
+    % (for debug)
+    % % %         figure(1)
+    % % %         set(gcf, 'Position',  [100, 600, 500, 500])
+    % % %         surf(x,y,M_old')
+    % % %         view(0,90)
+    % % %         colorbar
+    % % %         shading interp
+    % % %         colormap jet
+    % % %         drawnow
+    % % %         title(['Tumor at time step ',num2str(j)], 'Fontsize', 15);
+    % % %         figure(2)
+    % % %         set(gcf, 'Position',  [600, 600, 500, 500])
+    % % %         surf(x,y,S_old')
+    % % %         view(0,90)
+    % % %         colorbar
+    % % %         shading interp
+    % % %         colormap jet
+    % % %         drawnow
+    % % %         title(['Acidity at time step ',num2str(j)], 'Fontsize', 15);
+    %
     if (mod(count2,temp)==0)
         M_total (:,:,count) = M_old;
         S_total (:,:,count) = S_old;
@@ -172,10 +205,10 @@ end
 %% videos
 % These two loops save the solution video per each 3 days
 
-% In this section Videos are saved in Videos_aniso_II folder
-% To check if Videos_aniso_II folder exists otherwise to create
-if not(isfolder('Videos_aniso_II'))
-    mkdir('Videos_aniso_II')
+% In this section Videos are saved in Videos_exp2_delta0p2 folder
+% To check if Videos_exp2_delta0p2 folder exists otherwise to create
+if not(isfolder('Videos_exp2_delta0p2'))
+    mkdir('Videos_exp2_delta0p2')
 end
 
 % to check which video profile supports available in the machine
@@ -191,7 +224,7 @@ else
     v_pro = 'MPEG-4';
 end
 
-videofile = VideoWriter(strcat('Videos_aniso_II/Tumor', video_ext),v_pro);
+videofile = VideoWriter(strcat('Videos_exp2_delta0p2/Tumor_hyper_II', video_ext),v_pro);
 videofile.Quality = 100;
 videofile.FrameRate = 10;
 open(videofile);
@@ -216,7 +249,7 @@ for i = 1: size(M_total,3)
 end
 close(videofile);
 
-videofile = VideoWriter(strcat('Videos_aniso_II/Acidity', video_ext),v_pro);
+videofile = VideoWriter(strcat('Videos_exp2_delta0p2/Acidity_hyper_II', video_ext),v_pro);
 videofile.Quality = 100;
 videofile.FrameRate = 10;
 open(videofile);
@@ -242,12 +275,12 @@ for i = 1: size(S_total,3)
 end
 close(videofile);
 
-%% This loop saves the results for each 30 days in folder Plots_aniso_II in png
+%% This loop saves the results for each 30 days in folder Plots_exp2_delta0p2 in png
 % or eps format with days in file names
 
 % to check wheather Plots folder exists otherwise it makes a folder Plots
-if not(isfolder('Plots_aniso_II'))
-    mkdir('Plots_aniso_II')
+if not(isfolder('Plots_exp2_delta0p2'))
+    mkdir('Plots_exp2_delta0p2')
 end
 
 for i = 1:10:size(M_total,3)
@@ -266,8 +299,8 @@ for i = 1:10:size(M_total,3)
     end
     xlabel('X' , 'Fontsize', 15);
     ylabel('Y' , 'Fontsize', 15);
-    %     saveas(gcf,sprintf('Plots_aniso_II/Tumor_aniso_II_%ddays',3*(i-1)),'epsc');%eps
-    saveas(gcf,sprintf('Plots_aniso_II/Tumor_aniso_II_%ddays.png',3*(i-1)));%png
+    %     saveas(gcf,sprintf('Plots_exp2_delta0p2/Tumor_HS_delta_0p2_%ddays',3*(i-1)),'epsc');%eps
+    saveas(gcf,sprintf('Plots_exp2_delta0p2/Tumor_HS_delta_0p2_%ddays.png',3*(i-1)));%png
     
     figure(6)
     %     set(gcf, 'Position',  [600, 600, 500, 500])
@@ -284,8 +317,8 @@ for i = 1:10:size(M_total,3)
     end
     xlabel('X' , 'Fontsize', 15);
     ylabel('Y' , 'Fontsize', 15);
-    %     saveas(gcf,sprintf('Plots_aniso_II/Acidity_aniso_II_%ddays',3*(i-1)),'epsc');
-    saveas(gcf,sprintf('Plots_aniso_II/Acidity_aniso_II_%ddays.png',3*(i-1)))
+    %     saveas(gcf,sprintf('Plots_exp2_delta0p2/Acidity_HS_delta_0p2_%ddays',3*(i-1)),'epsc');
+    saveas(gcf,sprintf('Plots_exp2_delta0p2/Acidity_HS_delta_0p2_%ddays.png',3*(i-1)))
 end
 %% Other plots (FA and Q)
 
@@ -299,8 +332,9 @@ colormap('jet')
 title('FA')
 xlabel('X' , 'Fontsize', 15);
 ylabel('Y' , 'Fontsize', 15);
-saveas(gcf,'Plots_aniso_II/FA_aniso_II.png');
-%saveas(gcf,'Plots_aniso_II/FA_aniso_II','epsc');
+saveas(gcf,'Plots_exp2_delta0p2/FA_HS_delta_0p2.png');
+%saveas(gcf,'Plots_exp2_delta0p2/FA_HS_delta_0p2','epsc');
+
 
 figure(8)
 % set(gcf, 'Position',  [100, 600, 500, 500])
@@ -312,26 +346,44 @@ colormap('jet')
 title('Q')
 xlabel('X' , 'Fontsize', 15);
 ylabel('Y' , 'Fontsize', 15);
-saveas(gcf,'Plots_aniso_II/Q_macro_aniso_II.png');
-% saveas(gcf,'Plots_aniso_II/Q_macro_aniso_II','epsc');
+saveas(gcf,'Plots_exp2_delta0p2/Q_macro_HS_delta_0p2.png');
+% saveas(gcf,'Plots_exp2_delta0p2/Q_macro_HS_delta_0p2','epsc');
 
 figure(9)
 % set(gcf, 'Position',  [100, 600, 500, 500])
-surf(x,y,q(:,:,51)','LineStyle','none');
+surf(x,y,q(:,:,26)','LineStyle','none');
 view(0,90);
 colorbar
 shading interp
 colormap('jet')
-title('q at $\xi = \frac{\pi}{2}$','Fontsize', 18,'Interpreter','latex');
+title('$q_h$ at $\xi = \frac{\pi}{2}$','Fontsize', 18,'Interpreter','latex');
 xlabel('X' , 'Fontsize', 15);
 ylabel('Y' , 'Fontsize', 15);
-saveas(gcf,'Plots_aniso_II/q_aniso_II.png');
-% saveas(gcf,'Plots_aniso_II/q_aniso_II','epsc');
+saveas(gcf,'Plots_exp2_delta0p2/q_HS_delta_0p2.png');
+% saveas(gcf,'Plots_exp2_delta0p2/q_HS_delta_0p2','epsc');
+
+figure(10)
+quiver(X,Y,Ex',Ey',1.5);
+axis([0,1000,0,1000])
+title('E_q')
+xlabel('X' , 'Fontsize', 15);
+ylabel('Y' , 'Fontsize', 15);
+saveas(gcf,'Plots_exp2_delta0p2/Eq_HS_delta_0p2.png');
+
+figure(11)
+mask1 = (x <=550) & (x>=400);
+mask2 = (y <=550) & (y>=400);
+quiver(X(mask1,mask2),Y(mask1, mask2),Ex(mask1,mask2)',Ey(mask1,mask2)',2);
+axis([400,550,400,550])
+title('Zoomed E_q')
+xlabel('X' , 'Fontsize', 15);
+ylabel('Y' , 'Fontsize', 15);
+saveas(gcf,'Plots_exp2_delta0p2/Eq_zoomed_HS_delta_0p2.png');
 
 %% uncomment to save the workspace
 if not(isfolder('Mat_files'))
     mkdir('Mat_files')
 end
-save('Mat_files/main_2D_aniso_II.mat');
+save('Mat_files/main_2D_HS_delta_0p2.mat');
 %%
 toc

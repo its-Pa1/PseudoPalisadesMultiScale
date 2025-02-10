@@ -1,0 +1,36 @@
+# Ignore MATLAB files
+*.asv
+*.m~
+
+# Ignore temporary files
+*.tmp
+*.temp
+*.log
+
+# Ignore directories
+.DS_Store
+.vscode/
+.idea/
+__pycache__/
+node_modules/
+
+# Ignore OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Ignore Python files
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# # Ignore PDF files
+# *.pdf
+# Ignore media files
+*.mp4
+*.avi
+*.png
+*.mat

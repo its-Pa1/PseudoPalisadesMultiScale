@@ -2,15 +2,15 @@ function [q,Q_value, a,b,c,FA,DivDT_x,DivDT_y,A] = ...
     set_tumor_diff(x,y,dt, delta,kappa, center_x_DW,center_y_DW, DT_scale)
 % This function deals with everything required for tumor diffusion
 % computation
-% the non-negative discretization (the stencils are shwon in Table 2.3  of 
-% "Diss_Kumar_Pawan.pdf" present in the parent directory) has been used for 
+% the non-negative discretization (the stencils are shwon in Table 2.3  of
+% "Diss_Kumar_Pawan.pdf" present in the parent directory) has been used for
 % tumor diff tensor
 
 % outputs:
 % q = mesoscopic tissue(q)
 % Q_value = macroscopic tissue(Q)
 % a = DT(1,1) first element of first row of tumor diff tensor
-% b = DT(1,2) = DT(2,1) 
+% b = DT(1,2) = DT(2,1)
 % c = DT(2,2)
 % FA = fractional anisotropy
 % DivDT_x = x component of div of DT

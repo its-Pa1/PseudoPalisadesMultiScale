@@ -1,6 +1,7 @@
 function q  = tissue_q_un(x,y,theta, delta, kappa, center_x_DW, center_y_DW)
-% This function compute the undirected microscopic tissue (q) given by eq.
-% 2.5.4 of "Diss_Kumar_Pawan.pdf" present in the parent directory 
+% This function compute the symmetric fiber distribution (undirected mesoscopic tissue (q)) given by eq.
+% 2.5.4 of "Diss_Kumar_Pawan.pdf" present in the parent directory
+
 
 % the d(x,y)
 d = 0.25*(exp(-0.005*(x-center_x_DW).*(x-center_x_DW)))-0.25*(exp(-0.005*(y-center_y_DW).*(y-center_y_DW)));

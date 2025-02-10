@@ -1,17 +1,18 @@
-function [q,Q_value, a,b,c,FA,DivDT_x,DivDT_y,A] = ...
-    set_tumor_diff(x,y,dt, delta,kappa, center_x_DW,center_y_DW, DT_scale)
+function [q, E_q, div_Eq, Q_value, a_d,b_d,c_d,FA,DivDT_x,DivDT_y,A] = ...
+    set_tumor_diff(x,y,dt, delta,kappa, center_x_DW,center_y_DW, DT_scale,epsilon)
 % This function deals with everything required for tumor diffusion
 % computation
-% the non-negative discretization (the stencils are shwon in Table 2.3  of 
-% "Diss_Kumar_Pawan.pdf" present in the parent directory) has been used for 
+% the non-negative discretization (the stencils are shwon in Table 2.3  of
+% "Diss_Kumar_Pawan.pdf" present in the parent directory) has been used for
 % tumor diff tensor
 
 % outputs:
-% q = mesoscopic tissue(q)
+% q = microscopic tissue(q,x,\theta)
+% E_q = mean fiber distribution
 % Q_value = macroscopic tissue(Q)
-% a = DT(1,1) first element of first row of tumor diff tensor
-% b = DT(1,2) = DT(2,1) 
-% c = DT(2,2)
+% a_d = DT(1,1) first element of first row of tumor diff tensor
+% b_d = DT(1,2) = DT(2,1)
+% c_d = DT(2,2) % _d is for DT and a_v for Vq(the corrected diff tensor)
 % FA = fractional anisotropy
 % DivDT_x = x component of div of DT
 % DivDT_y = y component of div of DT
@@ -25,16 +26,17 @@ function [q,Q_value, a,b,c,FA,DivDT_x,DivDT_y,A] = ...
 % center_x_DW = x position of the cross for D_w(as our D_w makes a cross type sign)
 % center_y_DW = y position of the cross for D_w
 % DT_scale = s^2/lambda0
-
+% epsilon = epsilon for hyperbolic scaling
 %% memory allocations
 Lx = length(x);
 N = (Lx-2)^2;
 h = x(2)-x(1);
-% theta = linspace(0,pi,100);
-theta = linspace(0,pi,101);
+theta = linspace(0,2*pi,101);
 q = zeros(size(x,2),size(y,2),size(theta,2));
+E_q = zeros(2,size(x,2),size(y,2));
 Q_value = zeros(size(x,2),size(y,2));
 DC = zeros(2,2,size(x,2),size(y,2));
+DC2 = zeros(2,2,size(x,2),size(y,2));
 FA = zeros(size(x,2), size(y,2));
 alpha1 = zeros(N,1);
 alpha2 = zeros(N,1);
@@ -45,19 +47,36 @@ alpha6 = zeros(N,1);
 alpha7 = zeros(N,1);
 alpha8 = zeros(N,1);
 alpha9 = zeros(N,1);
-a = zeros(size(x,2),size(y,2));
-b = zeros(size(x,2),size(y,2));
-c = zeros(size(x,2),size(y,2));
+a_v = zeros(size(x,2),size(y,2));
+b_v = zeros(size(x,2),size(y,2));
+c_v = zeros(size(x,2),size(y,2));
+a_d = zeros(size(x,2),size(y,2));
+b_d = zeros(size(x,2),size(y,2));
+c_d = zeros(size(x,2),size(y,2));
 DivDT_x = zeros(Lx-2,Lx-2);
 DivDT_y = zeros(Lx-2,Lx-2);
-
+div_Eq = zeros(Lx-2, Lx-2);
 %% Loops to save the Q and q at all points and theta(small q depends of theta)
 for j = 1:length(y)
     for i = 1:length(x)
         Q_value(i,j) = tissue_Q_macro(x(i),y(j),center_x_DW,center_y_DW);
         for l = 1:length(theta)
-            q(i,j,l) = tissue_q_un(x(i),y(j),theta(l),delta, kappa, center_x_DW, center_y_DW);
+            q(i,j,l) = tissue_unimodal(x(i),y(j),theta(l),delta, kappa, center_x_DW, center_y_DW);
         end
+        
+    end
+end
+%% Computation of E_q
+for i = 1:length(x)
+    for j = 1:length(y)
+        sum3 = 0;
+        for l = 2:length(theta)-1
+            sum3 = sum3 + (q(i,j,l)*[cos(theta(l));sin(theta(l))]);
+        end
+        temp = 0.5*(theta(2)-theta(1))*(2*sum3+(q(i,j,1)*...
+            [cos(theta(1));sin(theta(1))]) + (q(i,j,end)*[cos(theta(end));sin(theta(end))]));
+        
+        E_q(:,i,j) =  (temp);
         
     end
 end
@@ -66,18 +85,33 @@ end
 for j = 1:length(y)
     for i = 1:length(x)
         sum2 = 0;
+        sum22 = 0;
         
         for l = 2:length(theta)-1
-            sum2 = sum2 + q(i,j,l)*([cos(theta(l));sin(theta(l))]*[cos(theta(l));sin(theta(l))]');
+            sum2 = sum2 + q(i,j,l)*(([cos(theta(l));sin(theta(l))]-E_q(:,i,j))*...
+                ([cos(theta(l));sin(theta(l))]-E_q(:,i,j))');
+            sum22 = sum22 + q(i,j,l)*([cos(theta(l));sin(theta(l))]*[cos(theta(l));sin(theta(l))]');
         end
-        DC(:,:,i,j) = DT_scale*2*0.5*(theta(2)-theta(1))*(2*sum2 ...
+        
+        DC(:,:,i,j) = epsilon*DT_scale*0.5*(theta(2)-theta(1))*(2*sum2+q(i,j,1)*...
+            ([cos(theta(1));sin(theta(1))]-E_q(:,i,j))*([cos(theta(1));sin(theta(1))]-E_q(:,i,j))'...
+            + q(i,j,end)*([cos(theta(end));sin(theta(end))]-E_q(:,i,j))*([cos(theta(end));sin(theta(end))]...
+            -E_q(:,i,j))');
+        
+        DC2(:,:,i,j) = epsilon*DT_scale*0.5*(theta(2)-theta(1))*(2*sum22 ...
             + q(i,j,1)*[cos(theta(1));sin(theta(1))]*[cos(theta(1));sin(theta(1))]'...
             + q(i,j,end)*[cos(theta(end));sin(theta(end))]*[cos(theta(end));sin(theta(end))]');
         
-        temp_d = DC(:,:,i,j);
-        a(i,j) = temp_d(1,1);
-        b(i,j) = temp_d(1,2);
-        c(i,j) = temp_d(2,2);
+        
+        temp_v = DC(:,:,i,j);
+        a_v(i,j) = temp_v(1,1);
+        b_v(i,j) = temp_v(1,2);
+        c_v(i,j) = temp_v(2,2);
+        
+        temp_d2 = DC2(:,:,i,j);
+        a_d(i,j) = temp_d2(1,1);
+        b_d(i,j) = temp_d2(1,2);
+        c_d(i,j) = temp_d2(2,2);
     end
 end
 %% Here FA is stored at all points in the domain
@@ -89,7 +123,7 @@ for j = 1:length(y)
 end
 %% In this section, all the 9 stencils(as mentioned in Weikart et al, pdf in this folder)
 %have been saved as alpha's. alpha1 is the upper-left stencil, alpha2:
-%upper-middle and so on. Also, in these loops, the div of DT has been
+%upper-middle and so on. Also, in these loops, the div of DT & Eq has been
 %stored
 
 for j = 2:Lx-1
@@ -98,31 +132,32 @@ for j = 2:Lx-1
         ii = i-1;
         jj = j-1;
         
-        alpha1(k) = ((abs(b(i-1,j+1)) - b(i-1,j+1)) + (abs(b(i,j)) - b(i,j)))/(4*h*h);
+        alpha1(k) = ((abs(b_v(i-1,j+1)) - b_v(i-1,j+1)) + (abs(b_v(i,j)) - b_v(i,j)))/(4*h*h);
         
-        alpha2(k) = ((c(i,j+1)+c(i,j))/(2*h*h)) - ((abs(b(i,j+1))+abs(b(i,j)))/(2*h*h));
+        alpha2(k) = ((c_v(i,j+1)+c_v(i,j))/(2*h*h)) - ((abs(b_v(i,j+1))+abs(b_v(i,j)))/(2*h*h));
         
-        alpha3(k) = ((abs(b(i+1,j+1)) +  b(i+1,j+1))/(4*h*h)) + (abs(b(i,j))+b(i,j))/(4*h*h);
+        alpha3(k) = ((abs(b_v(i+1,j+1)) +  b_v(i+1,j+1))/(4*h*h)) + (abs(b_v(i,j))+b_v(i,j))/(4*h*h);
         
-        alpha4(k) = ((a(i-1,j)+a(i,j))/(2*h*h)) - ((abs(b(i-1,j))+abs(b(i,j)))/(2*h*h));
+        alpha4(k) = ((a_v(i-1,j)+a_v(i,j))/(2*h*h)) - ((abs(b_v(i-1,j))+abs(b_v(i,j)))/(2*h*h));
         
-        alpha5(k) =  -((a(i-1,j)+2*a(i,j)+a(i+1,j))/(2*h*h)) - ((abs(b(i-1,j+1))-b(i-1,j+1)+...
-            abs(b(i+1,j+1))+b(i+1,j+1))/(4*h*h)) - ((abs(b(i-1,j-1))+b(i-1,j-1)+...
-            abs(b(i+1,j-1))-b(i+1,j-1))/(4*h*h)) + ((abs(b(i-1,j))+abs(b(i+1,j))+...
-            abs(b(i,j-1))+abs(b(i,j+1))+2*abs(b(i,j)))/(2*h*h)) - ((c(i,j-1)+2*c(i,j)+...
-            c(i,j+1))/(2*h*h));
+        alpha5(k) =  -((a_v(i-1,j)+2*a_v(i,j)+a_v(i+1,j))/(2*h*h)) - ((abs(b_v(i-1,j+1))-b_v(i-1,j+1)+...
+            abs(b_v(i+1,j+1))+b_v(i+1,j+1))/(4*h*h)) - ((abs(b_v(i-1,j-1))+b_v(i-1,j-1)+...
+            abs(b_v(i+1,j-1))-b_v(i+1,j-1))/(4*h*h)) + ((abs(b_v(i-1,j))+abs(b_v(i+1,j))+...
+            abs(b_v(i,j-1))+abs(b_v(i,j+1))+2*abs(b_v(i,j)))/(2*h*h)) - ((c_v(i,j-1)+2*c_v(i,j)+...
+            c_v(i,j+1))/(2*h*h));
         
-        alpha6(k) = ((a(i+1,j)+a(i,j))/(2*h*h)) - ((abs(b(i+1,j))+abs(b(i,j)))/(2*h*h));
+        alpha6(k) = ((a_v(i+1,j)+a_v(i,j))/(2*h*h)) - ((abs(b_v(i+1,j))+abs(b_v(i,j)))/(2*h*h));
         
-        alpha7(k) = ((abs(b(i-1,j-1))+b(i-1,j-1))/(4*h*h)) + (abs(b(i,j))+b(i,j))/(4*h*h);
+        alpha7(k) = ((abs(b_v(i-1,j-1))+b_v(i-1,j-1))/(4*h*h)) + (abs(b_v(i,j))+b_v(i,j))/(4*h*h);
         
-        alpha8(k) = ((c(i,j-1)+c(i,j))/(2*h*h)) - ((abs(b(i,j-1))+abs(b(i,j)))/(2*h*h));
+        alpha8(k) = ((c_v(i,j-1)+c_v(i,j))/(2*h*h)) - ((abs(b_v(i,j-1))+abs(b_v(i,j)))/(2*h*h));
         
-        alpha9(k) = ((abs(b(i+1,j-1))-b(i+1,j-1))/(4*h*h)) + ((abs(b(i,j)) - b(i,j))/(4*h*h));
+        alpha9(k) = ((abs(b_v(i+1,j-1))-b_v(i+1,j-1))/(4*h*h)) + ((abs(b_v(i,j)) - b_v(i,j))/(4*h*h));
         %         alpha1(k) = i;
         
-        DivDT_x(ii,jj) = (a(i,j) - a(i-1,j) + b(i,j) - b(i-1,j))/h;
-        DivDT_y(ii,jj) = (b(i,j) - b(i,j-1) + c(i,j) - c(i,j-1))/h;
+        DivDT_x(ii,jj) = (a_d(i,j) - a_d(i-1,j) + b_d(i,j) - b_d(i-1,j))/(2*h);
+        DivDT_y(ii,jj) = (b_d(i,j) - b_d(i,j-1) + c_d(i,j) - c_d(i,j-1))/(2*h);
+        div_Eq(ii,jj) = ((E_q(1,i,j)-E_q(1,i-1,j)) + (E_q(2,i,j) - E_q(2,i,j-1)))/(2*h);
     end
 end
 

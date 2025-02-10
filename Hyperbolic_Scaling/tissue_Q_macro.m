@@ -1,7 +1,7 @@
 function Q_value  = tissue_Q_macro(x,y, center_x_DW, center_y_DW)
 % this function computes the macroscopic tissue density(Q) as described on
-% page 33 of section 2.5 of 
-% "Diss_Kumar_Pawan.pdf" present in the parent directory 
+% page 33 of section 2.5 of
+% "Diss_Kumar_Pawan.pdf" present in the parent directory
 
 % d(x,y) for D_w
 d = 0.25*(exp(-0.005*(x-center_x_DW).*(x-center_x_DW)))-0.25*(exp(-0.005*(y-center_y_DW).*(y-center_y_DW)));
