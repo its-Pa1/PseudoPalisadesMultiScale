@@ -1,4 +1,4 @@
-# Repository Overview
+# **Repository Overview - PseudoPalisadesMultiScale**
 
 Welcome to this GitHub repository, which houses the code associated with the article **"Multiscale modeling of glioma pseudopalisades: contributions from the tumor microenvironment"**, available at [Springer](https://link.springer.com/article/10.1007/s00285-021-01599-x) and in **Chapter 2** of the thesis at [KLUEDO](https://kluedo.ub.rptu.de/frontdoor/index/index/docId/6573).  
 
