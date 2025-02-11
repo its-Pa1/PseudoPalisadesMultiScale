@@ -1,6 +1,3 @@
-Here’s the improved version with the reference added in a standard format:  
-
----
 
 # **Parabolic Directory**  
 
@@ -58,7 +55,3 @@ This way, the reference blends naturally into the explanation without breaking t
 ## **Requirements**  
 
 - **MATLAB Version:** 2018a or later (older versions may also work).  
-
----
-
-This keeps everything well-structured while ensuring the reference appears naturally with a clickable link. Let me know if you need any tweaks! 🚀
