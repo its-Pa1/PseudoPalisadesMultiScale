@@ -40,6 +40,7 @@ DGM is applied to real brain geometry by integrating imaging data—particularly
 To run this part, **data.ncdf** is required in the `data` folder. Alternatively, synthetic DTI data can be used.  
 
 ---
+Each subdirectory contains a separate README file explaining its contents in detail.
 
 Feel free to explore the directories to dive deeper into specific aspects of the project. If you have any questions or need further clarification, don't hesitate to reach out.  
 
