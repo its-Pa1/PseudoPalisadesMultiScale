@@ -6,7 +6,7 @@ This directory contains the C++ codes for the Discontinuous Galerkin Method (DGM
 
 ## Main Files/Scripts
 
-- **hypo_macro.cc**: The main C++ file which calls all the functions and simulates the model. It includes the necessary headers and sets up the simulation environment.
+- **main.cc**: The main C++ file which calls all the functions and simulates the model. It includes the necessary headers and sets up the simulation environment.
 
 - **assembler_hypo_micro.hh**: This header file defines the `Assembler_s` class, which is responsible for assembling various matrices (diffusion, advection, and source) and computing initial values for the simulation. It includes methods for setting up the problem, assembling matrices, and solving the mass matrix.
 
